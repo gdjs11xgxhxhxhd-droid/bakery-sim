@@ -1,0 +1,214 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>3D Пекарня</title>
+<style>
+  body { margin:0; overflow:hidden; background:#111; }
+  #ui {
+    position:absolute;
+    top:10px; left:10px;
+    font-family:monospace;
+    color:#eee;
+    background:rgba(0,0,0,.65);
+    padding:12px;
+    border-radius:10px;
+    z-index:10;
+  }
+  #ui button {
+    width:180px;
+    margin-top:6px;
+    padding:8px;
+    background:#a0522d;
+    color:white;
+    border:none;
+    border-radius:6px;
+    cursor:pointer;
+    font-size:14px;
+  }
+  #ui button:disabled {
+    background:#555;
+    cursor:default;
+  }
+</style>
+</head>
+<body>
+
+<div id="ui">
+  🥖 <b>Пекарня</b><br><br>
+  <div id="stats"></div>
+  <button id="bakeBtn">🔥 Печь хлеб</button>
+  <button id="sellBtn" disabled>💰 Продать хлеб</button>
+</div>
+
+<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+<script>
+// ---------------- СЦЕНА ----------------
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1f2329);
+
+// ---------------- КАМЕРА ----------------
+const camera = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.1, 100);
+camera.position.set(0, 4.2, 8);
+camera.lookAt(0,1,1);
+
+// ---------------- РЕНДЕР ----------------
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(devicePixelRatio);
+document.body.appendChild(renderer.domElement);
+
+// ---------------- СВЕТ ----------------
+scene.add(new THREE.AmbientLight(0xffffff,0.45));
+const light = new THREE.DirectionalLight(0xffffff,0.9);
+light.position.set(4,8,4);
+scene.add(light);
+
+// ---------------- ПОЛ ----------------
+const floor = new THREE.Mesh(
+  new THREE.PlaneGeometry(10,10),
+  new THREE.MeshStandardMaterial({color:0x6b5a4a})
+);
+floor.rotation.x = -Math.PI/2;
+scene.add(floor);
+
+// ---------------- СТЕНЫ ----------------
+// ЗАДНЯЯ
+function wall(x,z,r=0){
+  const w = new THREE.Mesh(
+    new THREE.BoxGeometry(10,3,0.25),
+    new THREE.MeshStandardMaterial({color:0x8a7a68})
+  );
+  w.position.set(x,1.5,z);
+  w.rotation.y=r;
+  scene.add(w);
+}
+wall(0,-5);                 // задняя
+wall(-5,0,Math.PI/2);       // левая
+wall(5,0,Math.PI/2);        // правая
+// ❌ передней стены НЕТ — пекарня открыта
+
+// ---------------- ПЕЧЬ ----------------
+const oven = new THREE.Mesh(
+  new THREE.BoxGeometry(2,1.6,2),
+  new THREE.MeshStandardMaterial({color:0x7a3e1d})
+);
+oven.position.set(-2,0.8,-2);
+scene.add(oven);
+
+// ---------------- СТОЛ ----------------
+const table = new THREE.Mesh(
+  new THREE.BoxGeometry(3,0.6,1.5),
+  new THREE.MeshStandardMaterial({color:0x5b3a22})
+);
+table.position.set(0,0.3,1.5);
+scene.add(table);
+
+// ---------------- ПРИЛАВОК ----------------
+const counter = new THREE.Mesh(
+  new THREE.BoxGeometry(4,1,1),
+  new THREE.MeshStandardMaterial({color:0x4a2e1a})
+);
+counter.position.set(0,0.5,3);
+scene.add(counter);
+
+// ---------------- ХЛЕБ ----------------
+const breadMesh = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.35,0.4,0.25,16),
+  new THREE.MeshStandardMaterial({color:0xd8b46a})
+);
+breadMesh.visible = false;
+breadMesh.position.set(0,0.6,1.5);
+scene.add(breadMesh);
+
+// ---------------- КЛИЕНТ ----------------
+const client = new THREE.Mesh(
+  new THREE.CapsuleGeometry(0.35,1.2,4,8),
+  new THREE.MeshStandardMaterial({color:0x4fa3ff})
+);
+client.position.set(0,0.9,3.9); // ПРЯМО У ПРИЛАВКА
+client.visible = false;
+scene.add(client);
+
+// ---------------- ИГРА ----------------
+let bread = 0;
+let money = 0;
+let baking = false;
+let bakeTimer = 0;
+let clientHere = false;
+
+const stats = document.getElementById("stats");
+const bakeBtn = document.getElementById("bakeBtn");
+const sellBtn = document.getElementById("sellBtn");
+
+function updateUI(){
+  stats.innerHTML = `
+    Хлеб: ${bread}<br>
+    Деньги: ${money}<br>
+    Клиент: ${clientHere ? "у прилавка" : "—"}
+  `;
+  sellBtn.disabled = !(clientHere && bread > 0);
+}
+
+bakeBtn.onclick = () => {
+  if (!baking) {
+    baking = true;
+    bakeTimer = 3;
+    bakeBtn.disabled = true;
+  }
+};
+
+sellBtn.onclick = () => {
+  if (clientHere && bread > 0) {
+    bread--;
+    money += 7;
+    clientHere = false;
+    client.visible = false;
+    breadMesh.visible = bread > 0;
+    updateUI();
+  }
+};
+
+// ---------------- АНИМАЦИЯ ----------------
+let clientTimer = 0;
+
+function animate(){
+  requestAnimationFrame(animate);
+
+  if (baking) {
+    bakeTimer -= 0.016;
+    oven.rotation.y += 0.05;
+    if (bakeTimer <= 0) {
+      baking = false;
+      bread++;
+      breadMesh.visible = true;
+      bakeBtn.disabled = false;
+      oven.rotation.y = 0;
+      updateUI();
+    }
+  }
+
+  if (!clientHere) {
+    clientTimer += 0.016;
+    if (clientTimer > 4) {
+      clientTimer = 0;
+      clientHere = true;
+      client.visible = true;
+      updateUI();
+    }
+  }
+
+  renderer.render(scene, camera);
+}
+updateUI();
+animate();
+
+window.addEventListener("resize",()=>{
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+</script>
+</body>
+</html>
