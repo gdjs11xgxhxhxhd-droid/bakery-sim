@@ -1,154 +1,384 @@
-
 <!DOCTYPE html>
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<title>3D Пекарня</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D Пекарня - Ultra Edition</title>
 <style>
-  body { margin:0; overflow:hidden; background:#111; }
+  body { margin: 0; overflow: hidden; background: #1a1a1a; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+  
   #ui {
-    position:absolute;
-    top:10px; left:10px;
-    font-family:monospace;
-    color:#eee;
-    background:rgba(0,0,0,.65);
-    padding:12px;
-    border-radius:10px;
-    z-index:10;
+    position: absolute;
+    top: 20px; left: 20px;
+    color: #fff;
+    background: rgba(30, 30, 30, 0.85);
+    backdrop-filter: blur(5px);
+    padding: 20px;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    z-index: 10;
+    width: 220px;
+    border: 1px solid rgba(255,255,255,0.1);
+    user-select: none;
   }
-  #ui button {
-    width:180px;
-    margin-top:6px;
-    padding:8px;
-    background:#a0522d;
-    color:white;
-    border:none;
-    border-radius:6px;
-    cursor:pointer;
-    font-size:14px;
+
+  h1 {
+    margin: 0 0 15px 0;
+    font-size: 20px;
+    color: #ffd700;
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 1px;
   }
-  #ui button:disabled {
-    background:#555;
-    cursor:default;
+
+  #stats {
+    font-size: 14px;
+    line-height: 1.6;
+    margin-bottom: 20px;
+    color: #ddd;
+  }
+
+  button {
+    width: 100%;
+    margin-bottom: 10px;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  #bakeBtn {
+    background: linear-gradient(135deg, #e67e22, #d35400);
+    color: white;
+    box-shadow: 0 4px 0 #a04000;
+  }
+  #bakeBtn:active:not(:disabled) {
+    transform: translateY(2px);
+    box-shadow: 0 1px 0 #a04000;
+  }
+
+  #sellBtn {
+    background: linear-gradient(135deg, #27ae60, #219150);
+    color: white;
+    box-shadow: 0 4px 0 #1e8449;
+  }
+  #sellBtn:active:not(:disabled) {
+    transform: translateY(2px);
+    box-shadow: 0 1px 0 #1e8449;
+  }
+
+  button:disabled {
+    background: #555;
+    color: #888;
+    box-shadow: none;
+    cursor: not-allowed;
+    transform: none;
   }
 </style>
 </head>
 <body>
 
 <div id="ui">
-  🥖 <b>Пекарня</b><br><br>
+  <h1>🥖 Пекарня</h1>
   <div id="stats"></div>
-  <button id="bakeBtn">🔥 Печь хлеб</button>
-  <button id="sellBtn" disabled>💰 Продать хлеб</button>
+  <button id="bakeBtn"><span>🔥</span> Печь хлеб</button>
+  <button id="sellBtn" disabled><span>💰</span> Продать</button>
 </div>
 
-<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+<!-- Подключаем Three.js -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+
 <script>
-// ---------------- СЦЕНА ----------------
+// ---------------- НАСТРОЙКИ СЦЕНЫ ----------------
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x1f2329);
+scene.background = new THREE.Color(0x2c3e50);
+scene.fog = new THREE.Fog(0x2c3e50, 10, 25); // Туман для глубины
 
-// ---------------- КАМЕРА ----------------
-const camera = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.1, 100);
-camera.position.set(0, 4.2, 8);
-camera.lookAt(0,1,1);
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth/window.innerHeight, 0.1, 100);
+camera.position.set(0, 5, 9);
+camera.lookAt(0, 0.5, 0);
 
-// ---------------- РЕНДЕР ----------------
-const renderer = new THREE.WebGLRenderer({antialias:true});
-renderer.setSize(innerWidth, innerHeight);
-renderer.setPixelRatio(devicePixelRatio);
+const renderer = new THREE.WebGLRenderer({antialias: true});
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.shadowMap.enabled = true; // Включаем тени!
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 
-// ---------------- СВЕТ ----------------
-scene.add(new THREE.AmbientLight(0xffffff,0.45));
-const light = new THREE.DirectionalLight(0xffffff,0.9);
-light.position.set(4,8,4);
-scene.add(light);
+// ---------------- МАТЕРИАЛЫ ----------------
+const materials = {
+  floor: new THREE.MeshStandardMaterial({color: 0x5d4037, roughness: 0.8}),
+  wall: new THREE.MeshStandardMaterial({color: 0xfdf2e9, roughness: 0.9}),
+  woodDark: new THREE.MeshStandardMaterial({color: 0x3e2723, roughness: 0.9}),
+  woodLight: new THREE.MeshStandardMaterial({color: 0x8d6e63, roughness: 0.7}),
+  metal: new THREE.MeshStandardMaterial({color: 0x2c3e50, roughness: 0.4, metalness: 0.6}),
+  glass: new THREE.MeshPhysicalMaterial({color: 0x88ccff, transparent: true, opacity: 0.3, roughness: 0, metalness: 0.1}),
+  bread: new THREE.MeshStandardMaterial({color: 0xffa000, roughness: 0.6}),
+  skin: new THREE.MeshStandardMaterial({color: 0xffcc80}),
+  shirt: new THREE.MeshStandardMaterial({color: 0x3498db}),
+  pants: new THREE.MeshStandardMaterial({color: 0x2c3e50}),
+  hair: new THREE.MeshStandardMaterial({color: 0x000000}),
+  gold: new THREE.MeshStandardMaterial({color: 0xffd700, metalness: 0.8, roughness: 0.2})
+};
 
-// ---------------- ПОЛ ----------------
-const floor = new THREE.Mesh(
-  new THREE.PlaneGeometry(10,10),
-  new THREE.MeshStandardMaterial({color:0x6b5a4a})
-);
-floor.rotation.x = -Math.PI/2;
+// ---------------- СВЕТ ----------------
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+scene.add(ambientLight);
+
+const sunLight = new THREE.DirectionalLight(0xfffae0, 1.2);
+sunLight.position.set(5, 10, 5);
+sunLight.castShadow = true;
+sunLight.shadow.mapSize.width = 1024;
+sunLight.shadow.mapSize.height = 1024;
+sunLight.shadow.camera.near = 0.5;
+sunLight.shadow.camera.far = 20;
+scene.add(sunLight);
+
+// Теплый свет от печи (сначала выключен)
+const ovenLight = new THREE.PointLight(0xffaa00, 0, 4);
+ovenLight.position.set(-2, 1.5, -2);
+scene.add(ovenLight);
+
+// ---------------- ОКРУЖЕНИЕ ----------------
+
+// Пол
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(12, 12), materials.floor);
+floor.rotation.x = -Math.PI / 2;
+floor.receiveShadow = true;
 scene.add(floor);
 
-// ---------------- СТЕНЫ ----------------
-// ЗАДНЯЯ
-function wall(x,z,r=0){
-  const w = new THREE.Mesh(
-    new THREE.BoxGeometry(10,3,0.25),
-    new THREE.MeshStandardMaterial({color:0x8a7a68})
-  );
-  w.position.set(x,1.5,z);
-  w.rotation.y=r;
-  scene.add(w);
+// Стены
+function createWall(x, z, ry, width) {
+  const wallGroup = new THREE.Group();
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, 4, 0.2), materials.wall);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  mesh.position.y = 2;
+  wallGroup.add(mesh);
+
+  // Плинтус
+  const skirting = new THREE.Mesh(new THREE.BoxGeometry(width, 0.2, 0.25), materials.woodDark);
+  skirting.position.y = 0.1;
+  wallGroup.add(skirting);
+
+  wallGroup.position.set(x, 0, z);
+  wallGroup.rotation.y = ry;
+  scene.add(wallGroup);
+  return wallGroup;
 }
-wall(0,-5);                 // задняя
-wall(-5,0,Math.PI/2);       // левая
-wall(5,0,Math.PI/2);        // правая
-// ❌ передней стены НЕТ — пекарня открыта
 
-// ---------------- ПЕЧЬ ----------------
-const oven = new THREE.Mesh(
-  new THREE.BoxGeometry(2,1.6,2),
-  new THREE.MeshStandardMaterial({color:0x7a3e1d})
-);
-oven.position.set(-2,0.8,-2);
-scene.add(oven);
+createWall(0, -4, 0, 10); // Задняя
+createWall(-5, 0, Math.PI/2, 8); // Левая
+createWall(5, 0, Math.PI/2, 8); // Правая
 
-// ---------------- СТОЛ ----------------
-const table = new THREE.Mesh(
-  new THREE.BoxGeometry(3,0.6,1.5),
-  new THREE.MeshStandardMaterial({color:0x5b3a22})
-);
-table.position.set(0,0.3,1.5);
-scene.add(table);
+// Окно на задней стене
+const windowFrame = new THREE.Mesh(new THREE.BoxGeometry(3, 2, 0.3), materials.woodLight);
+windowFrame.position.set(2, 2.5, -3.9);
+scene.add(windowFrame);
+const windowGlass = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 1.8), materials.glass);
+windowGlass.position.set(2, 2.5, -3.74);
+scene.add(windowGlass);
 
-// ---------------- ПРИЛАВОК ----------------
-const counter = new THREE.Mesh(
-  new THREE.BoxGeometry(4,1,1),
-  new THREE.MeshStandardMaterial({color:0x4a2e1a})
-);
-counter.position.set(0,0.5,3);
-scene.add(counter);
 
-// ---------------- ХЛЕБ ----------------
-const breadMesh = new THREE.Mesh(
-  new THREE.CylinderGeometry(0.35,0.4,0.25,16),
-  new THREE.MeshStandardMaterial({color:0xd8b46a})
-);
+// ---------------- МЕБЕЛЬ (ФУНКЦИИ) ----------------
+
+function createTable(x, z, width, depth) {
+  const group = new THREE.Group();
+  
+  // Столешница
+  const top = new THREE.Mesh(new THREE.BoxGeometry(width, 0.1, depth), materials.woodLight);
+  top.position.y = 0.85;
+  top.castShadow = true;
+  top.receiveShadow = true;
+  group.add(top);
+
+  // Ножки
+  const legGeo = new THREE.BoxGeometry(0.1, 0.8, 0.1);
+  const legPositions = [
+    {x: width/2 - 0.1, z: depth/2 - 0.1},
+    {x: -width/2 + 0.1, z: depth/2 - 0.1},
+    {x: width/2 - 0.1, z: -depth/2 + 0.1},
+    {x: -width/2 + 0.1, z: -depth/2 + 0.1},
+  ];
+
+  legPositions.forEach(pos => {
+    const leg = new THREE.Mesh(legGeo, materials.woodDark);
+    leg.position.set(pos.x, 0.4, pos.z);
+    leg.castShadow = true;
+    leg.receiveShadow = true;
+    group.add(leg);
+  });
+
+  group.position.set(x, 0, z);
+  scene.add(group);
+  return group;
+}
+
+// Стол для подготовки
+createTable(0, 1.5, 3, 1.5);
+
+// Прилавок
+const counterGroup = createTable(0, 3.5, 4, 1.2);
+// Закроем перед прилавка панелью
+const frontPanel = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.8, 0.05), materials.woodLight);
+frontPanel.position.set(0, 0.4, 0.55); // Чуть спереди
+frontPanel.castShadow = true;
+counterGroup.add(frontPanel);
+
+
+// ---------------- ДЕТАЛИЗИРОВАННАЯ ПЕЧЬ ----------------
+const ovenGroup = new THREE.Group();
+
+// Корпус
+const body = new THREE.Mesh(new THREE.BoxGeometry(2, 2.2, 1.8), materials.metal);
+body.position.y = 1.1;
+body.castShadow = true;
+body.receiveShadow = true;
+ovenGroup.add(body);
+
+// Окно печи (светящееся изнутри при выпечке)
+const ovenWindow = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.8, 0.1), materials.glass);
+ovenWindow.position.set(0, 1.3, 0.91);
+ovenGroup.add(ovenWindow);
+
+// Внутренность (чтобы стекло не было черным)
+const interior = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.7, 0.1), new THREE.MeshBasicMaterial({color: 0x222222}));
+interior.position.set(0, 1.3, 0.85);
+ovenGroup.add(interior);
+
+// Ручка
+const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.2), materials.woodLight);
+handle.rotation.z = Math.PI/2;
+handle.position.set(0, 1.8, 1.0);
+ovenGroup.add(handle);
+
+// Ножки печи
+const footGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.2);
+[ [-0.8, -0.8], [0.8, -0.8], [-0.8, 0.8], [0.8, 0.8] ].forEach(pos => {
+  const foot = new THREE.Mesh(footGeo, materials.metal);
+  foot.position.set(pos[0], 0.1, pos[1]);
+  ovenGroup.add(foot);
+});
+
+ovenGroup.position.set(-3.5, 0, -2);
+ovenGroup.rotation.y = 0.5; // Немного повернем
+scene.add(ovenGroup);
+
+// Дымоход
+const chimney = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 3), materials.metal);
+chimney.position.set(-3.5, 3.5, -2.5);
+scene.add(chimney);
+
+
+// ---------------- ХЛЕБ (БАТОН) ----------------
+function createLoaf() {
+  const group = new THREE.Group();
+  const main = new THREE.Mesh(
+    new THREE.BoxGeometry(0.6, 0.3, 0.35), 
+    materials.bread
+  );
+  // Скруглим немного через модификаторы scale или просто геометрией
+  // В ThreeJS core нет RoundedBox без аддонов, сымитируем деталями
+  main.geometry.translate(0, 0.15, 0);
+  main.castShadow = true;
+  
+  // Надрезы сверху
+  for(let i=-1; i<=1; i++) {
+    const cut = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.02, 0.25), new THREE.MeshStandardMaterial({color: 0xe67e22}));
+    cut.position.set(i*0.15, 0.3, 0);
+    cut.rotation.y = 0.2;
+    main.add(cut);
+  }
+  
+  group.add(main);
+  return group;
+}
+
+const breadMesh = createLoaf();
 breadMesh.visible = false;
-breadMesh.position.set(0,0.6,1.5);
+breadMesh.position.set(0, 0.9, 1.5);
 scene.add(breadMesh);
 
-// ---------------- КЛИЕНТ ----------------
-const client = new THREE.Mesh(
-  new THREE.CapsuleGeometry(0.35,1.2,4,8),
-  new THREE.MeshStandardMaterial({color:0x4fa3ff})
-);
-client.position.set(0,0.9,3.9); // ПРЯМО У ПРИЛАВКА
+
+// ---------------- ПЕРСОНАЖ (КЛИЕНТ) ----------------
+function createHuman() {
+  const group = new THREE.Group();
+  
+  // Голова
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.28, 0.25), materials.skin);
+  head.position.y = 1.55;
+  head.castShadow = true;
+  group.add(head);
+
+  // Волосы
+  const hair = new THREE.Mesh(new THREE.BoxGeometry(0.27, 0.1, 0.27), materials.hair);
+  hair.position.y = 1.68;
+  group.add(hair);
+
+  // Тело
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.5, 0.25), materials.shirt);
+  body.position.y = 1.15;
+  body.castShadow = true;
+  group.add(body);
+
+  // Ноги
+  const leftLeg = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.9, 0.15), materials.pants);
+  leftLeg.position.set(-0.11, 0.45, 0);
+  leftLeg.castShadow = true;
+  group.add(leftLeg);
+
+  const rightLeg = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.9, 0.15), materials.pants);
+  rightLeg.position.set(0.11, 0.45, 0);
+  rightLeg.castShadow = true;
+  group.add(rightLeg);
+
+  // Руки
+  const leftArm = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.4, 0.12), materials.skin);
+  leftArm.position.set(-0.3, 1.2, 0);
+  group.add(leftArm);
+
+  const rightArm = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.4, 0.12), materials.skin);
+  rightArm.position.set(0.3, 1.2, 0);
+  group.add(rightArm);
+
+  return group;
+}
+
+const client = createHuman();
+client.position.set(0, 0, 4.5); 
 client.visible = false;
 scene.add(client);
 
-// ---------------- ИГРА ----------------
-let bread = 0;
+
+// ---------------- ЛОГИКА ИГРЫ ----------------
+let breadCount = 0;
 let money = 0;
 let baking = false;
 let bakeTimer = 0;
 let clientHere = false;
 
-const stats = document.getElementById("stats");
+const statsEl = document.getElementById("stats");
 const bakeBtn = document.getElementById("bakeBtn");
 const sellBtn = document.getElementById("sellBtn");
 
-function updateUI(){
-  stats.innerHTML = `
-    Хлеб: ${bread}<br>
-    Деньги: ${money}<br>
-    Клиент: ${clientHere ? "у прилавка" : "—"}
+function updateUI() {
+  statsEl.innerHTML = `
+    <b>На складе:</b> ${breadCount} шт.<br>
+    <b>Касса:</b> $${money}<br>
+    <b>Статус:</b> ${clientHere ? "<span style='color:#3498db'>Клиент ждет</span>" : "Пусто"}
   `;
-  sellBtn.disabled = !(clientHere && bread > 0);
+  
+  sellBtn.disabled = !(clientHere && breadCount > 0);
+  
+  // Обновляем видимость хлеба на столе
+  breadMesh.visible = breadCount > 0;
 }
 
 bakeBtn.onclick = () => {
@@ -156,58 +386,98 @@ bakeBtn.onclick = () => {
     baking = true;
     bakeTimer = 3;
     bakeBtn.disabled = true;
+    bakeBtn.innerHTML = "<span>⏳</span> Печем...";
+    
+    // Эффекты выпечки
+    ovenLight.intensity = 2; // Включаем свет внутри
+    interior.material.color.setHex(0xff5500); // "Нагреваем" тэны
   }
 };
 
 sellBtn.onclick = () => {
-  if (clientHere && bread > 0) {
-    bread--;
-    money += 7;
+  if (clientHere && breadCount > 0) {
+    breadCount--;
+    money += 15; // Подняли цены за качество ;)
     clientHere = false;
     client.visible = false;
-    breadMesh.visible = bread > 0;
+    
+    // Анимация продажи (монетки можно добавить потом, пока просто скроем)
     updateUI();
   }
 };
 
+
 // ---------------- АНИМАЦИЯ ----------------
 let clientTimer = 0;
 
-function animate(){
+function animate() {
   requestAnimationFrame(animate);
 
+  const time = Date.now() * 0.001;
+
+  // Логика выпечки
   if (baking) {
     bakeTimer -= 0.016;
-    oven.rotation.y += 0.05;
+    
+    // Печь вибрирует
+    ovenGroup.rotation.z = (Math.sin(time * 20) * 0.02);
+    // Свет пульсирует
+    ovenLight.intensity = 1.5 + Math.sin(time * 10) * 0.5;
+
     if (bakeTimer <= 0) {
       baking = false;
-      bread++;
-      breadMesh.visible = true;
+      breadCount++;
+      
+      // Сброс состояния печи
       bakeBtn.disabled = false;
-      oven.rotation.y = 0;
+      bakeBtn.innerHTML = "<span>🔥</span> Печь хлеб";
+      ovenGroup.rotation.z = 0;
+      ovenLight.intensity = 0;
+      interior.material.color.setHex(0x222222);
+      
       updateUI();
     }
   }
 
+  // Логика клиента
   if (!clientHere) {
     clientTimer += 0.016;
-    if (clientTimer > 4) {
+    if (clientTimer > 3) { // Быстрее приходят
       clientTimer = 0;
       clientHere = true;
       client.visible = true;
+      
+      // Случайный цвет рубашки для разнообразия
+      const colors = [0x3498db, 0xe74c3c, 0x2ecc71, 0x9b59b6];
+      client.children[2].material = new THREE.MeshStandardMaterial({
+        color: colors[Math.floor(Math.random() * colors.length)]
+      });
+      
+      // Анимация прыжка при появлении
+      client.position.y = 0;
       updateUI();
     }
+  } else {
+    // Клиент покачивается в ожидании
+    client.rotation.y = Math.sin(time * 1.5) * 0.1;
+    client.position.y = Math.abs(Math.sin(time * 2)) * 0.05;
+  }
+  
+  // Хлеб на столе медленно крутится, привлекая внимание
+  if(breadMesh.visible) {
+    breadMesh.rotation.y = time * 0.5;
   }
 
   renderer.render(scene, camera);
 }
+
 updateUI();
 animate();
 
-window.addEventListener("resize",()=>{
-  camera.aspect = innerWidth/innerHeight;
+window.addEventListener("resize", () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth,innerHeight);
+  renderer.setSize(window.innerWidth, window.innerHeight);
 });
 </script>
 </body>
